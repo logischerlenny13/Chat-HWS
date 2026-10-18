@@ -182,6 +182,10 @@ a{color:var(--accent);}
 .attach-btn:hover{color:var(--accent);}
 .empty-state{margin:auto;text-align:center;color:var(--muted);padding:40px 20px;font-size:14px;}
 
+/* ---- HWS Bereiche ---- */
+.dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dashboard-grid .card{margin:0}.big-num{font-family:var(--font-head);font-size:28px;color:var(--accent);margin-top:6px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px}.group-pill{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--accent-soft);color:var(--accent)}.notice-item{border-left:3px solid var(--accent)}.activity-line{padding:9px 0;border-bottom:1px solid var(--border);font-size:13.5px}.activity-line:last-child{border-bottom:0}.activity-time{font-size:11px;color:var(--muted);margin-top:2px}.wiki-cat{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}.incident-open{border-left:3px solid var(--danger)}.incident-done{border-left:3px solid var(--teal)}
+@media(max-width:700px){.dashboard-grid{grid-template-columns:1fr}}
+
 /* ---- Karten ---- */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .sel-inline{background:var(--surface);color:var(--text);border:1px solid transparent;border-radius:10px;padding:8px 10px;font-size:13px;}
@@ -329,11 +333,14 @@ a{color:var(--accent);}
 <div id="app" class="hidden">
   <div class="sidebar">
     <div class="sidebar-brand"><div class="brand-mark"></div><span>HWS Studio</span></div>
+    <div class="nav-item" data-view="home"><span class="icon">⌂</span>Heute</div>
     <div class="nav-item active" data-view="chat"><span class="icon">💬</span>Chat<span class="nav-badge hidden" data-badge="chat">0</span></div>
+    <div class="nav-item" data-view="inbox"><span class="icon">🔔</span>Inbox<span class="nav-badge hidden" data-badge="inbox">0</span></div>
     <div class="nav-item" data-view="calendar"><span class="icon">🗓</span>Kalender</div>
     <div class="nav-item" data-view="tasks"><span class="icon">✓</span>Aufgaben<span class="nav-badge hidden" data-badge="tasks">0</span></div>
     <div class="nav-item" data-view="expenses"><span class="icon">€</span>Konto</div>
     <div class="nav-item" data-view="wiki"><span class="icon">📌</span>Wiki</div>
+    <div class="nav-item" data-view="incidents"><span class="icon">⚠</span>Schäden</div>
     <div class="nav-item hidden" id="nav-admin" data-view="admin"><span class="icon">⚙</span>Admin<span class="nav-badge hidden" data-badge="admin">0</span></div>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -368,8 +375,11 @@ a{color:var(--accent);}
     <div class="view active" id="view-chat">
       <div class="chat-layout" id="chat-layout">
         <div class="chat-list" id="chat-list">
-          <div class="chat-list-heading">Studio</div>
+          <div class="chat-list-heading">HWS Studio</div>
           <div id="group-item"></div>
+          <div class="chat-list-heading">Meine Gruppen</div>
+          <div id="custom-group-list"></div>
+          <button class="btn btn-ghost btn-sm hidden" id="btn-new-group" style="width:100%;margin:5px 0 10px;">+ Gruppe erstellen</button>
           <div class="chat-list-heading">Direktnachrichten</div>
           <div id="dm-list"></div>
         </div>
@@ -393,6 +403,24 @@ a{color:var(--accent);}
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="view" id="view-home">
+      <div class="view-header"><div><h2>Heute</h2><div class="sub">Dein Überblick in HWS Studio</div></div></div>
+      <div class="view-body">
+        <div class="dashboard-grid" id="home-grid"></div>
+        <div class="section-head"><h3>Aktivität</h3></div><div class="card" id="activity-list"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-inbox">
+      <div class="view-header"><div><h2>Inbox</h2><div class="sub">Erwähnungen, Einladungen und wichtige Änderungen</div></div><button class="btn btn-ghost btn-sm" id="inbox-read-all">Alle gelesen</button></div>
+      <div class="view-body" id="inbox-list"></div>
+    </div>
+
+    <div class="view" id="view-incidents">
+      <div class="view-header"><div><h2>Vorfälle & Schäden</h2><div class="sub">Privat beschädigte Gegenstände fair dokumentieren und klären</div></div><button class="btn btn-primary btn-sm" id="btn-new-incident">+ Melden</button></div>
+      <div class="view-body" id="incident-list"></div>
     </div>
 
     <div class="view" id="view-calendar">
@@ -460,8 +488,10 @@ a{color:var(--accent);}
     </div>
 
     <div class="view" id="view-admin">
-      <div class="view-header"><div><h2>Admin</h2><div class="sub">Accounts verwalten</div></div></div>
+      <div class="view-header"><div><h2>Admin</h2><div class="sub">Accounts, Rollen und Gruppen verwalten</div></div></div>
       <div class="view-body">
+        <div class="card"><h3>Mitgliedschaftssystem</h3><div class="meta" style="margin-top:7px;">Nur <b>Offizielle Mitglieder</b>, <b>Buchhaltung</b> und <b>Admins</b> gehören zur HWS-Studio-Gruppe. Normale Mitglieder/Gäste sehen stattdessen die Willkommensgruppe und können von Admins in Projektgruppen eingeladen werden.</div><button class="btn btn-primary btn-sm" id="admin-new-group" style="margin-top:10px;">+ Neue Projektgruppe</button></div>
+        <div id="admin-groups"></div>
         <div class="table-wrap"><table class="admin-table">
           <thead><tr><th>Name</th><th>E-Mail</th><th>Status</th><th>Rolle</th><th></th></tr></thead>
           <tbody id="admin-users"></tbody>
@@ -471,6 +501,7 @@ a{color:var(--accent);}
   </div>
 
   <div class="bottom-nav">
+    <div class="nav-item" data-view="home"><span class="icon">⌂</span>Heute</div>
     <div class="nav-item active" data-view="chat"><span class="icon">💬</span>Chat<span class="nav-badge hidden" data-badge="chat">0</span></div>
     <div class="nav-item" data-view="calendar"><span class="icon">🗓</span>Kalender</div>
     <div class="nav-item" data-view="tasks"><span class="icon">✓</span>Aufgaben<span class="nav-badge hidden" data-badge="tasks">0</span></div>
@@ -555,6 +586,7 @@ a{color:var(--accent);}
   <div class="modal">
     <h3 id="wiki-heading">Neue Notiz</h3>
     <div class="field"><label>Titel</label><input type="text" id="wiki-title" maxlength="80"></div>
+    <div class="field"><label>Kategorie</label><select id="wiki-category"><option>Regeln</option><option>Anleitungen</option><option>Wichtige Infos</option><option>Listen</option></select></div>
     <div class="field"><label>Text</label><textarea id="wiki-text" style="min-height:160px;"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" data-close="modal-wiki">Abbrechen</button>
@@ -582,6 +614,23 @@ a{color:var(--accent);}
       <button class="btn btn-ghost" data-close="modal-profile">Abbrechen</button>
       <button class="btn btn-primary" id="prof-save">Speichern</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-group">
+  <div class="modal"><h3>Projektgruppe erstellen</h3>
+    <div class="field"><label>Name</label><input id="group-name" maxlength="60" placeholder="z. B. Filmabend"></div>
+    <div class="field"><label>Personen hinzufügen</label><div class="assign-box" id="group-members"></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close="modal-group">Abbrechen</button><button class="btn btn-primary" id="group-save">Erstellen</button></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-incident">
+  <div class="modal"><h3>Schaden / Vorfall melden</h3>
+    <div class="field"><label>Gegenstand / Titel</label><input id="incident-title" maxlength="100"></div>
+    <div class="field"><label>Was ist passiert?</label><textarea id="incident-desc"></textarea></div>
+    <div class="field"><label>Betroffene Person</label><select id="incident-owner"></select></div>
+    <div class="field"><label>Vereinbarter Ersatz / Reparatur (optional)</label><input id="incident-resolution"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-close="modal-incident">Abbrechen</button><button class="btn btn-primary" id="incident-save">Melden</button></div>
   </div>
 </div>
 
@@ -630,7 +679,7 @@ let booted = false, registering = false, BOOT_TS = Date.now();
 let activeChat = 'group', chatMsgs = {}, seenMsgs = {};
 let composer = {reply:null, edit:null}, msgTarget = null, sending = false, chatQuery = '';
 let calCursor = new Date(), selectedDate = ymd(new Date());
-let calendarEvents = [], allTasks = [], allExpenses = [], allWiki = [];
+let calendarEvents = [], allTasks = [], allExpenses = [], allWiki = [], allGroups = [], allIncidents = [], allInbox = [], allActivity = [];
 let expMonth = 'all', currentExpenseItems = [];
 let editingEvent = null, editingTask = null, editingWiki = null, newPhoto;   // newPhoto: undefined=unverändert, null=entfernen, string=neu
 
@@ -666,6 +715,10 @@ function dmChatId(a, b){ return [a, b].sort().join('_'); }
 function nameOf(uid){ return allUsers[uid]?.name || '?'; }
 function isImg(s){ return typeof s === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s); }
 function isAdmin(){ return myProfile?.role === 'admin'; }
+function isOfficial(){ return ['offiziell','buchhaltung','admin'].includes(myProfile?.role); }
+function isGuest(){ return myProfile?.role === 'mitglied'; }
+function groupKey(id){ return 'custom:'+id; }
+function groupIdFromKey(k){ return k.startsWith('custom:') ? k.slice(7) : null; }
 function isAccounting(){ return myProfile?.role === 'admin' || myProfile?.role === 'buchhaltung'; }
 function avHtml(u){
   if(u && isImg(u.photo)) return `<div class="avatar" style="background-image:url(${u.photo})"></div>`;
@@ -852,7 +905,7 @@ function cleanupListeners(keepProfile){
   });
 }
 function resetState(){
-  allUsers = {}; chatMsgs = {}; seenMsgs = {}; calendarEvents = []; allTasks = []; allExpenses = []; allWiki = [];
+  allUsers = {}; chatMsgs = {}; seenMsgs = {}; calendarEvents = []; allTasks = []; allExpenses = []; allWiki = []; allGroups=[]; allIncidents=[]; allInbox=[]; allActivity=[]; allGroups=[]; allIncidents=[]; allInbox=[]; allActivity=[];
   activeChat = 'group'; composer = {reply:null, edit:null}; msgTarget = null; expMonth = 'all'; chatQuery = ''; myProfile = null;
 }
 function teardownApp(){
@@ -865,8 +918,8 @@ function teardownApp(){
    ============================================================ */
 function bootApp(){
   booted = true; BOOT_TS = Date.now();
-  showScreen('app'); refreshRoleUI(); switchView('chat');
-  loadAllUsers(); listenGroupChat(); listenDmList(); listenCalendar(); listenTasks(); listenExpenses(); listenWiki();
+  showScreen('app'); refreshRoleUI(); switchView('home');
+  loadAllUsers(); listenGroupChat(); listenGroups(); listenDmList(); listenCalendar(); listenTasks(); listenExpenses(); listenWiki(); listenIncidents(); listenInbox(); listenActivity();
   setupPush();
   if(isMobile()){ activeChat = 'group'; $('chat-layout').classList.remove('show-chat'); renderChatList(); }
   else openChat('group');
@@ -879,11 +932,12 @@ function refreshRoleUI(){
   av.style.backgroundImage = isImg(myProfile.photo) ? `url(${myProfile.photo})` : '';
   ['nav-admin','nav-admin-mobile'].forEach(id=> $(id).classList.toggle('hidden', !isAdmin()));
   $('btn-new-expense').classList.toggle('hidden', !isAccounting());
+  $('btn-new-group').classList.toggle('hidden', !isAdmin());
   if(!isAdmin() && $('view-admin').classList.contains('active')) switchView('chat');
   if(booted){ renderExpenses(); renderWiki(); if(isAdmin()) renderAdminTable(); }
 }
 
-const VIEW_TITLES = {chat:'Chat', calendar:'Kalender', tasks:'Aufgaben', expenses:'Konto', wiki:'Wiki', admin:'Admin'};
+const VIEW_TITLES = {home:'Heute',chat:'Chat',inbox:'Inbox',incidents:'Schäden',calendar:'Kalender',tasks:'Aufgaben',expenses:'Konto',wiki:'Wiki',admin:'Admin'};
 function switchView(view){
   document.querySelectorAll('.nav-item').forEach(i=> i.classList.toggle('active', i.dataset.view === view));
   document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+view));
@@ -903,8 +957,10 @@ function loadAllUsers(){
     allUsers = {};
     qs.forEach(d=> allUsers[d.id] = {id:d.id, ...d.data()});
     renderChatList();
-    if(activeChat !== 'group') $('chat-pane-title').textContent = allUsers[activeChat]?.name || 'Chat';
-    renderMessages(false); renderTasks(); renderCalendar(); renderExpenses(); renderWiki();
+    if(activeChat==='welcome') $('chat-pane-title').textContent='Willkommensgruppe';
+    else if(activeChat.startsWith('custom:')) $('chat-pane-title').textContent=allGroups.find(g=>g.id===groupIdFromKey(activeChat))?.name||'Projektgruppe';
+    else if(activeChat!=='group') $('chat-pane-title').textContent=allUsers[activeChat]?.name||'Chat';
+    renderMessages(false); renderTasks(); renderCalendar(); renderExpenses(); renderWiki(); renderHome();
     if(isAdmin()){ renderAdminTable(); setBadge('admin', Object.values(allUsers).filter(u=>!u.approved).length); }
   }, onErr('Benutzer'));
 }
@@ -915,13 +971,37 @@ function loadAllUsers(){
 const EMOJIS = ['👍','❤️','😂','😮','🙏'];
 function groupCol(){ return db.collection('groupChat').doc('main').collection('messages'); }
 function dmCol(o){ return db.collection('chats').doc(dmChatId(currentUser.uid, o)).collection('messages'); }
-function msgCol(key){ return key === 'group' ? groupCol() : dmCol(key); }
+function welcomeCol(){ return db.collection('welcomeChat').doc('main').collection('messages'); }
+function customGroupCol(id){ return db.collection('groups').doc(id).collection('messages'); }
+function msgCol(key){
+  if(key === 'group') return groupCol();
+  if(key === 'welcome') return welcomeCol();
+  if(key.startsWith('custom:')) return customGroupCol(groupIdFromKey(key));
+  return dmCol(key);
+}
 function msgRef(key, mid){ return msgCol(key).doc(mid); }
 function snapToMsgs(qs){ return qs.docs.map(d=>({id:d.id, ...d.data({serverTimestamps:'estimate'})})); }
 
 function listenGroupChat(){
-  unsubscribers.group = groupCol().orderBy('timestamp','asc').limitToLast(150)
-    .onSnapshot(qs=>{ chatMsgs.group = snapToMsgs(qs); onChatUpdated('group'); }, onErr('Team-Chat'));
+  if(isOfficial()){
+    unsubscribers.group = groupCol().orderBy('timestamp','asc').limitToLast(150)
+      .onSnapshot(qs=>{ chatMsgs.group=snapToMsgs(qs); onChatUpdated('group'); }, onErr('HWS-Studio-Gruppe'));
+  }else{
+    unsubscribers.welcome = welcomeCol().orderBy('timestamp','asc').limitToLast(150)
+      .onSnapshot(qs=>{ chatMsgs.welcome=snapToMsgs(qs); onChatUpdated('welcome'); }, onErr('Willkommensgruppe'));
+    activeChat='welcome';
+  }
+}
+function listenGroups(){
+  unsubscribers.groups = db.collection('groups').onSnapshot(qs=>{
+    allGroups=qs.docs.map(d=>({id:d.id,...d.data()})).filter(g=>isAdmin() || (g.members||[]).includes(currentUser.uid));
+    allGroups.forEach(g=>{
+      const key=groupKey(g.id), uk='cg_'+g.id;
+      if(unsubscribers[uk]) return;
+      unsubscribers[uk]=customGroupCol(g.id).orderBy('timestamp','asc').limitToLast(120).onSnapshot(ms=>{chatMsgs[key]=snapToMsgs(ms);onChatUpdated(key);},onErr('Projektgruppe'));
+    });
+    renderChatList(); renderAdminGroups();
+  },onErr('Gruppen'));
 }
 function listenDmList(){
   unsubscribers.dms = db.collection('chats').where('participants','array-contains', currentUser.uid)
@@ -972,7 +1052,7 @@ function onChatShown(){
 function previewOf(key){
   const m = (chatMsgs[key] || []).slice(-1)[0];
   if(!m) return 'Noch keine Nachrichten';
-  const prefix = m.senderId === currentUser.uid ? 'Du: ' : (key === 'group' ? (m.senderName || '') + ': ' : '');
+  const prefix = m.senderId === currentUser.uid ? 'Du: ' : (key === 'group' || key === 'welcome' || key.startsWith('custom:') ? (m.senderName || '') + ': ' : '');
   const body = m.deleted ? 'Nachricht gelöscht' : (m.text || (m.poll ? '📊 ' + m.poll.q : (m.imageBase64 ? '📷 Bild' : '')));
   return prefix + body;
 }
@@ -987,7 +1067,10 @@ function chatItem(key, avatarHtml, name){
 function renderChatList(){
   if(!currentUser) return;
   const g = $('group-item'); g.innerHTML = '';
-  g.appendChild(chatItem('group', '<div class="avatar">🏠</div>', 'Team-Chat'));
+  if(isOfficial()) g.appendChild(chatItem('group','<div class="avatar">🏠</div>','HWS Studio · Offiziell'));
+  else g.appendChild(chatItem('welcome','<div class="avatar">👋</div>','Willkommensgruppe'));
+  const cg=$('custom-group-list'); cg.innerHTML='';
+  allGroups.forEach(x=>cg.appendChild(chatItem(groupKey(x.id),'<div class="avatar">🎬</div>',x.name||'Projektgruppe')));
   const list = $('dm-list'); list.innerHTML = '';
   const lastTs = k => { const m = chatMsgs[k] || []; return m.length ? tsMs(m[m.length-1].timestamp) : 0; };
   Object.values(allUsers).filter(u=> u.id !== currentUser.uid && u.approved)
@@ -999,7 +1082,7 @@ function openChat(key){
   $('chat-search').value = ''; hide($('chat-search-bar'));
   $('msg-input').value = ''; $('file-input').value = ''; hide($('mention-box'));
   renderComposerBar();
-  $('chat-pane-title').textContent = key === 'group' ? 'Team-Chat' : (allUsers[key]?.name || 'Chat');
+  $('chat-pane-title').textContent = key==='group' ? 'HWS Studio · Offiziell' : key==='welcome' ? 'Willkommensgruppe' : key.startsWith('custom:') ? (allGroups.find(g=>g.id===groupIdFromKey(key))?.name||'Projektgruppe') : (allUsers[key]?.name||'Chat');
   $('chat-layout').classList.add('show-chat');
   renderMessages(true);
   if(isChatVisible()) markRead(key);
@@ -1042,7 +1125,7 @@ function buildMsg(m){
   div.className = 'msg' + (mine ? ' mine' : '');
   div.dataset.mid = m.id;
   let html = '';
-  if(!mine && activeChat === 'group') html += `<div class="sender">${escapeHtml(m.senderName || '')}</div>`;
+  if(!mine && (activeChat === 'group' || activeChat === 'welcome' || activeChat.startsWith('custom:'))) html += `<div class="sender">${escapeHtml(m.senderName || '')}</div>`;
   if(m.deleted){
     html += '<div class="bubble deleted">🚫 Nachricht gelöscht</div>';
   }else{
@@ -1858,7 +1941,7 @@ function renderWiki(){
   list.innerHTML = [...allWiki].sort((a,b)=> (a.title||'').localeCompare(b.title||'')).map(w=>{
     const can = w.createdBy === currentUser.uid || isAdmin();
     return `<div class="card"><div class="card-row"><div style="min-width:0;flex:1;">
-      <h3>${escapeHtml(w.title)}</h3><div class="wiki-text">${richText(w.text || '')}</div>
+      <div class="wiki-cat">${escapeHtml(w.category || 'Wichtige Infos')}</div><h3>${escapeHtml(w.title)}</h3><div class="wiki-text">${richText(w.text || '')}</div>
       <div class="meta">von ${escapeHtml(nameOf(w.createdBy))}</div></div>
       ${can ? `<div class="line" style="display:flex;"><button class="icon-btn" data-edit-wiki="${w.id}" title="Bearbeiten">✎</button><button class="icon-btn" data-del-wiki="${w.id}" title="Löschen">✕</button></div>` : ''}
     </div></div>`;
@@ -1876,7 +1959,7 @@ $('wiki-list').addEventListener('click', async e=>{
 function openWikiModal(w){
   editingWiki = w || null;
   $('wiki-heading').textContent = w ? 'Notiz bearbeiten' : 'Neue Notiz';
-  $('wiki-title').value = w?.title || ''; $('wiki-text').value = w?.text || '';
+  $('wiki-title').value = w?.title || ''; $('wiki-category').value = w?.category || 'Wichtige Infos'; $('wiki-text').value = w?.text || '';
   openModal('modal-wiki');
 }
 $('btn-new-wiki').addEventListener('click', ()=> openWikiModal(null));
@@ -1884,8 +1967,10 @@ $('wiki-save').addEventListener('click', async ()=>{
   const title = $('wiki-title').value.trim(), text = $('wiki-text').value.trim();
   if(!title){ toast('Titel ist Pflicht.'); return; }
   try{
-    if(editingWiki) await db.collection('wiki').doc(editingWiki.id).update({title, text, updatedAt: FV.serverTimestamp()});
-    else await db.collection('wiki').add({title, text, createdBy: currentUser.uid, createdAt: FV.serverTimestamp()});
+    const category=$('wiki-category').value;
+    if(editingWiki) await db.collection('wiki').doc(editingWiki.id).update({title,text,category,version:FV.increment(1),updatedAt:FV.serverTimestamp()});
+    else await db.collection('wiki').add({title,text,category,version:1,createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});
+    await logActivity('Wiki aktualisiert: '+title);
     closeModal('modal-wiki'); toast('Notiz gespeichert.');
   }catch(err){ onErr('Notiz speichern')(err); }
 });
@@ -1942,6 +2027,53 @@ $('prof-save').addEventListener('click', async ()=>{
 });
 
 /* ============================================================
+   GRUPPEN, DASHBOARD, INBOX, SCHÄDEN & AKTIVITÄT
+   ============================================================ */
+function fillGroupMembers(){
+  const box=$('group-members'); box.innerHTML='';
+  Object.values(allUsers).filter(u=>u.approved).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(u=>{
+    const l=document.createElement('label');l.className='checkbox-row';
+    l.innerHTML=`<input type="checkbox" value="${u.id}"><span>${escapeHtml(u.name)} · ${escapeHtml(u.role||'mitglied')}</span>`;box.appendChild(l);
+  });
+}
+function openGroupModal(){ if(!isAdmin()) return; $('group-name').value=''; fillGroupMembers(); openModal('modal-group'); }
+$('btn-new-group').addEventListener('click',openGroupModal); $('admin-new-group').addEventListener('click',openGroupModal);
+$('group-save').addEventListener('click',async()=>{
+  if(!isAdmin()) return; const name=$('group-name').value.trim(); if(!name){toast('Gruppenname fehlt.');return;}
+  const members=Array.from($('group-members').querySelectorAll('input:checked')).map(x=>x.value);
+  if(!members.includes(currentUser.uid)) members.push(currentUser.uid);
+  try{const ref=await db.collection('groups').add({name,members,createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});closeModal('modal-group');toast('Gruppe erstellt.');await logActivity('Projektgruppe erstellt: '+name);
+  for(const uid of members.filter(x=>x!==currentUser.uid)) await addInbox(uid,'Gruppeneinladung','Du wurdest zu „'+name+'“ hinzugefügt.','group',ref.id);
+  }catch(e){onErr('Gruppe erstellen')(e);}
+});
+function renderAdminGroups(){
+  const el=$('admin-groups'); if(!el||!isAdmin()) return;
+  el.innerHTML='<div class="section-head"><h3>Projektgruppen</h3></div>'+(allGroups.length?allGroups.map(g=>`<div class="card"><div class="card-row"><div><h3>${escapeHtml(g.name)}</h3><div class="meta">${(g.members||[]).map(nameOf).map(escapeHtml).join(', ')||'Keine Mitglieder'}</div></div><button class="btn btn-danger btn-sm" data-del-group="${g.id}">Löschen</button></div></div>`).join(''):'<div class="card"><div class="meta">Noch keine Projektgruppen.</div></div>');
+}
+$('admin-groups').addEventListener('click',async e=>{const b=e.target.closest('[data-del-group]');if(!b||!isAdmin())return;if(confirm('Projektgruppe wirklich löschen?')){await db.collection('groups').doc(b.dataset.delGroup).delete();toast('Gruppe gelöscht.');}});
+
+async function addInbox(uid,title,text,type='info',target=null){try{await db.collection('inbox').add({uid,title,text,type,target,read:false,createdAt:FV.serverTimestamp()});}catch(e){}}
+function listenInbox(){unsubscribers.inbox=db.collection('inbox').where('uid','==',currentUser.uid).onSnapshot(q=>{allInbox=q.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})})).sort((a,b)=>tsMs(b.createdAt)-tsMs(a.createdAt));renderInbox();},onErr('Inbox'));}
+function renderInbox(){const el=$('inbox-list');if(!el)return;const unread=allInbox.filter(x=>!x.read).length;setBadge('inbox',unread);el.innerHTML=allInbox.length?allInbox.map(n=>`<div class="card ${n.read?'':'notice-item'}" data-inbox="${n.id}"><h3>${escapeHtml(n.title)}</h3><div class="meta">${escapeHtml(n.text||'')} · ${fmtTime(n.createdAt)}</div></div>`).join(''):'<div class="empty-state">Keine Benachrichtigungen.</div>';renderHome();}
+$('inbox-list').addEventListener('click',async e=>{const x=e.target.closest('[data-inbox]');if(x)await db.collection('inbox').doc(x.dataset.inbox).update({read:true});});
+$('inbox-read-all').addEventListener('click',async()=>{const b=db.batch();allInbox.filter(x=>!x.read).forEach(x=>b.update(db.collection('inbox').doc(x.id),{read:true}));await b.commit();});
+
+async function logActivity(text){try{await db.collection('activity').add({text,by:currentUser.uid,createdAt:FV.serverTimestamp()});}catch(e){}}
+function listenActivity(){unsubscribers.activity=db.collection('activity').orderBy('createdAt','desc').limit(30).onSnapshot(q=>{allActivity=q.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));renderActivity();},()=>{});}
+function renderActivity(){const el=$('activity-list');if(!el)return;el.innerHTML=allActivity.length?allActivity.slice(0,12).map(a=>`<div class="activity-line">${escapeHtml(a.text)}<div class="activity-time">${escapeHtml(nameOf(a.by))} · ${fmtTime(a.createdAt)}</div></div>`).join(''):'<div class="meta">Noch keine Aktivitäten.</div>';}
+function renderHome(){const el=$('home-grid');if(!el||!currentUser)return;const openTasks=allTasks.filter(t=>t.status!=='done'&&(t.assignedTo||[]).includes(currentUser.uid)).length;const next=calendarEvents.filter(e=>e.date>=todayStr()).sort((a,b)=>(a.date||'').localeCompare(b.date||''))[0];const unread=allInbox.filter(x=>!x.read).length;el.innerHTML=`
+<div class="card"><div class="meta">Deine offenen Aufgaben</div><div class="big-num">${openTasks}</div></div>
+<div class="card"><div class="meta">Nächster Termin</div><h3 style="margin-top:7px">${next?escapeHtml(next.title):'Kein Termin'}</h3><div class="meta">${next?fmtDate(parseYmd(next.date)):''}</div></div>
+<div class="card"><div class="meta">Neue Inbox-Einträge</div><div class="big-num">${unread}</div></div>
+<div class="card"><div class="meta">Dein Status</div><h3 style="margin-top:7px">${isOfficial()?'HWS Studio · offiziell':'Gast / Willkommensgruppe'}</h3></div>`;renderActivity();}
+
+function listenIncidents(){unsubscribers.incidents=db.collection('incidents').onSnapshot(q=>{allIncidents=q.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})})).filter(x=>isAdmin()||x.createdBy===currentUser.uid||x.ownerUid===currentUser.uid);renderIncidents();},onErr('Schäden'));}
+function renderIncidents(){const el=$('incident-list');if(!el)return;el.innerHTML=allIncidents.length?allIncidents.sort((a,b)=>tsMs(b.createdAt)-tsMs(a.createdAt)).map(x=>`<div class="card ${x.status==='done'?'incident-done':'incident-open'}"><div class="card-row"><div><h3>${escapeHtml(x.title)}</h3><div class="meta">${escapeHtml(x.description||'')}<br>Betroffen: ${escapeHtml(nameOf(x.ownerUid))}${x.resolution?'<br>Ersatz/Reparatur: '+escapeHtml(x.resolution):''}</div></div>${isAdmin()&&x.status!=='done'?'<button class="btn btn-ghost btn-sm" data-close-incident="'+x.id+'">Erledigt</button>':''}</div></div>`).join(''):'<div class="empty-state">Keine offenen Meldungen.</div>';}
+$('btn-new-incident').addEventListener('click',()=>{$('incident-title').value='';$('incident-desc').value='';$('incident-resolution').value='';$('incident-owner').innerHTML=Object.values(allUsers).filter(u=>u.approved).map(u=>`<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');$('incident-owner').value=currentUser.uid;openModal('modal-incident');});
+$('incident-save').addEventListener('click',async()=>{const title=$('incident-title').value.trim(),description=$('incident-desc').value.trim();if(!title||!description){toast('Titel und Beschreibung sind Pflicht.');return;}try{await db.collection('incidents').add({title,description,ownerUid:$('incident-owner').value,resolution:$('incident-resolution').value.trim()||null,status:'open',createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});closeModal('modal-incident');toast('Meldung gespeichert.');await logActivity('Schadensmeldung erstellt: '+title);}catch(e){onErr('Schaden melden')(e);}});
+$('incident-list').addEventListener('click',async e=>{const b=e.target.closest('[data-close-incident]');if(b&&isAdmin()){await db.collection('incidents').doc(b.dataset.closeIncident).update({status:'done',closedAt:FV.serverTimestamp()});}});
+ 
+/* ============================================================
    ADMIN
    ============================================================ */
 function renderAdminTable(){
@@ -1953,7 +2085,8 @@ function renderAdminTable(){
       <td>${escapeHtml(u.name || '–')}</td><td>${escapeHtml(u.email || '–')}</td>
       <td><span class="status-dot ${u.approved ? 'ok' : 'wait'}"></span>${u.approved ? 'Freigegeben' : 'Wartet'}</td>
       <td><select data-role-for="${u.id}" ${u.id === currentUser.uid ? 'disabled' : ''}>
-        <option value="mitglied" ${u.role === 'mitglied' ? 'selected' : ''}>Mitglied</option>
+        <option value="mitglied" ${u.role === 'mitglied' ? 'selected' : ''}>Gast / normales Mitglied</option>
+        <option value="offiziell" ${u.role === 'offiziell' ? 'selected' : ''}>Offizielles Mitglied</option>
         <option value="buchhaltung" ${u.role === 'buchhaltung' ? 'selected' : ''}>Buchhaltung</option>
         <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
       <td>${!u.approved ? `<button class="btn btn-primary btn-sm" data-approve="${u.id}">Freigeben</button>` :
