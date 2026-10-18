@@ -300,12 +300,23 @@ a{color:var(--accent);}
 .plugin-card.installed{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-soft)}
 .plugin-status{display:inline-flex;align-items:center;gap:5px;width:max-content;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;background:var(--surface-2);color:var(--muted)}
 .plugin-status.on{background:var(--accent-soft);color:var(--accent)}
-.plugin-shell{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;height:100%;min-height:0}
+.plugin-shell{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:10px;height:100%;min-height:0}
 .plugin-frame{width:100%;height:100%;min-height:560px;border:0;border-radius:14px;background:#fff}
 .plugin-side{background:var(--surface);border-radius:14px;min-height:0;display:flex;flex-direction:column}
+.restaurant-overlay{position:fixed;inset:10px;z-index:80;background:var(--bg);border:1px solid var(--border);border-radius:18px;padding:10px;box-shadow:0 18px 70px #000a;display:flex;flex-direction:column}
+.restaurant-top{height:46px;display:flex;align-items:center;gap:8px;padding:0 4px 8px}
+.restaurant-exit{width:36px;height:36px;border:0;border-radius:11px;background:var(--accent);color:#1a1409;font-size:19px;font-weight:800;cursor:pointer}
+.restaurant-title{font-weight:700;flex:1}.restaurant-chat-select{max-width:190px}
+.restaurant-shell{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:8px}
+.restaurant-shell .plugin-frame{min-height:0;height:100%;border-radius:12px}
+.restaurant-chat{min-width:0;background:var(--surface);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.restaurant-chat .messages{padding:10px;gap:7px}.restaurant-chat .msg{max-width:92%}.restaurant-chat .bubble{font-size:12.5px;padding:7px 9px}.restaurant-chat .sender{font-size:10.5px}
+.restaurant-chat .chat-input{padding:7px}.restaurant-chat .chat-input input{font-size:13px!important;padding:8px 10px}.restaurant-chat .send-btn{width:34px;height:34px}
+.restaurant-chat-head{padding:10px 11px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700}
 .simple-list{display:flex;flex-direction:column;gap:8px}.simple-row{display:flex;gap:10px;align-items:center;background:var(--surface);border-radius:12px;padding:12px}
 .simple-row .grow{flex:1;min-width:0}.support-only-note{padding:12px 14px;background:var(--accent-soft);border-radius:12px;color:var(--accent);font-size:13px;margin-bottom:12px}
-@media(max-width:900px){.plugin-shell{grid-template-columns:1fr}.plugin-side{min-height:360px}.plugin-frame{min-height:65vh}}
+@media(max-width:900px){.plugin-shell{grid-template-columns:1fr}.plugin-side{min-height:360px}.plugin-frame{min-height:65vh}.restaurant-overlay{inset:4px;padding:6px;border-radius:13px}.restaurant-shell{grid-template-columns:minmax(0,1fr) 210px}.restaurant-title{display:none}.restaurant-chat-select{max-width:145px}}
+@media(max-width:620px){.restaurant-shell{grid-template-columns:1fr}.restaurant-chat{position:absolute;right:8px;top:54px;bottom:8px;width:min(82vw,300px);z-index:2;box-shadow:0 10px 40px #000b}.restaurant-chat.mobile-hidden{display:none}.restaurant-top{position:relative}.restaurant-overlay{overflow:hidden}}
 </style>
 </head>
 <body>
@@ -2177,13 +2188,57 @@ function openPlugin(id){
 }
 function renderRestaurantPlugin(w){
   const def=allPluginDefs.find(x=>x.id==='restaurant'), url=def?.url||'https://logischerlenny12.github.io/Restaurant-HWS/';
-  w.innerHTML=pluginHead('HWS Restaurant')+`<div class="plugin-shell"><iframe class="plugin-frame" src="${escapeHtml(url)}" title="HWS Restaurant" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><div class="plugin-side"><div style="padding:14px;font-weight:600">💬 Restaurant Chat</div><div class="messages" id="restaurant-chat-msgs"></div><div class="chat-input"><input id="restaurant-chat-input" type="text" placeholder="Nachricht…"><button class="send-btn" id="restaurant-chat-send">➤</button></div></div></div>`;
-  const col=db.collection('pluginChats').doc('restaurant').collection('messages');
-  if(unsubscribers.restaurantPluginChat)unsubscribers.restaurantPluginChat();
-  unsubscribers.restaurantPluginChat=col.orderBy('timestamp','asc').limitToLast(100).onSnapshot(q=>{
-    const box=$('restaurant-chat-msgs');if(!box)return;box.innerHTML=q.docs.map(d=>{const m=d.data();return `<div class="msg ${m.senderId===currentUser.uid?'mine':''}"><div class="sender">${escapeHtml(m.senderName||'')}</div><div class="bubble"><span class="txt">${escapeHtml(m.text||'')}</span></div></div>`}).join('');box.scrollTop=box.scrollHeight;
-  },onErr('Restaurant Chat'));
-  setTimeout(()=>{$('restaurant-chat-send').onclick=async()=>{const i=$('restaurant-chat-input'),text=i.value.trim();if(!text)return;i.value='';await col.add({text,senderId:currentUser.uid,senderName:myProfile.name,timestamp:FV.serverTimestamp()});};},0);
+  const chatOptions=[
+    {key:'restaurant',label:'Restaurant Chat'},
+    ...(isOfficial()?[{key:'group',label:'HWS Studio · Offiziell'}]:[{key:'welcome',label:'Willkommensgruppe'}]),
+    ...allGroups.map(g=>({key:groupKey(g.id),label:g.name}))
+  ];
+  w.innerHTML=`<div class="restaurant-overlay">
+    <div class="restaurant-top">
+      <button class="restaurant-exit" id="restaurant-exit" title="Plugin schließen">✓</button>
+      <div class="restaurant-title">🍔 HWS Restaurant</div>
+      <select class="sel-inline restaurant-chat-select" id="restaurant-chat-select">${chatOptions.map(x=>'<option value="'+escapeHtml(x.key)+'">'+escapeHtml(x.label)+'</option>').join('')}</select>
+      <button class="icon-btn" id="restaurant-chat-toggle" title="Chat ein-/ausblenden">💬</button>
+    </div>
+    <div class="restaurant-shell">
+      <iframe class="plugin-frame" src="${escapeHtml(url)}" title="HWS Restaurant" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>
+      <div class="restaurant-chat" id="restaurant-chat-panel">
+        <div class="restaurant-chat-head" id="restaurant-chat-head">💬 Restaurant Chat</div>
+        <div class="messages" id="restaurant-chat-msgs"></div>
+        <div class="chat-input"><input id="restaurant-chat-input" type="text" placeholder="Kurz schreiben…"><button class="send-btn" id="restaurant-chat-send">➤</button></div>
+      </div>
+    </div>
+  </div>`;
+  let restaurantChatKey='restaurant', stopChat=null;
+  const getCol=()=>restaurantChatKey==='restaurant'?db.collection('pluginChats').doc('restaurant').collection('messages'):msgCol(restaurantChatKey);
+  const drawChat=()=>{
+    if(stopChat)stopChat();
+    const col=getCol();
+    stopChat=col.orderBy('timestamp','asc').limitToLast(100).onSnapshot(q=>{
+      const box=$('restaurant-chat-msgs');if(!box)return;
+      box.innerHTML=q.docs.map(d=>{const m=d.data();return `<div class="msg ${m.senderId===currentUser.uid?'mine':''}"><div class="sender">${escapeHtml(m.senderName||'')}</div><div class="bubble"><span class="txt">${escapeHtml(m.text||'')}</span></div></div>`}).join('')||'<div class="empty-state">Noch keine Nachrichten.</div>';
+      box.scrollTop=box.scrollHeight;
+    },onErr('Plugin Chat'));
+    unsubscribers.restaurantPluginChat=()=>{if(stopChat)stopChat();};
+  };
+  const send=async()=>{
+    const i=$('restaurant-chat-input'),text=i.value.trim();if(!text)return;
+    const col=getCol(); i.value='';
+    try{
+      if(restaurantChatKey==='restaurant') await col.add({text,senderId:currentUser.uid,senderName:myProfile.name,timestamp:FV.serverTimestamp()});
+      else await col.add({text,senderId:currentUser.uid,senderName:myProfile.name,timestamp:FV.serverTimestamp()});
+    }catch(e){onErr('Nachricht senden')(e);}
+  };
+  $('restaurant-exit').onclick=()=>{if(stopChat)stopChat();pluginBack();};
+  $('restaurant-chat-toggle').onclick=()=>$('restaurant-chat-panel').classList.toggle('mobile-hidden');
+  $('restaurant-chat-select').onchange=e=>{
+    restaurantChatKey=e.target.value;
+    $('restaurant-chat-head').textContent='💬 '+(chatOptions.find(x=>x.key===restaurantChatKey)?.label||'Chat');
+    $('restaurant-chat-panel').classList.remove('mobile-hidden');drawChat();
+  };
+  $('restaurant-chat-send').onclick=send;
+  $('restaurant-chat-input').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();send();}};
+  drawChat();
 }
 function renderShoppingPlugin(w){
   w.innerHTML=pluginHead('Einkaufsliste')+`<div class="card"><div style="display:flex;gap:8px"><input id="shop-add" class="tasks-search" placeholder="Was brauchen wir?"><button class="btn btn-primary" id="shop-add-btn">Hinzufügen</button></div></div><div id="shopping-list" class="simple-list"></div>`;
