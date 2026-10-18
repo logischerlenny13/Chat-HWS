@@ -291,6 +291,18 @@ a{color:var(--accent);}
   .cal-grid{gap:4px;}
   .cal-cell{padding:4px;}
 }
+
+/* ---- Plugin Store & Support ---- */
+.plugin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.plugin-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:17px;display:flex;flex-direction:column;gap:10px}
+.plugin-icon{width:44px;height:44px;border-radius:13px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:23px}
+.plugin-card h3{font-family:var(--font-body);font-size:15px}.plugin-card .meta{flex:1}
+.plugin-shell{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;height:100%;min-height:0}
+.plugin-frame{width:100%;height:100%;min-height:560px;border:0;border-radius:14px;background:#fff}
+.plugin-side{background:var(--surface);border-radius:14px;min-height:0;display:flex;flex-direction:column}
+.simple-list{display:flex;flex-direction:column;gap:8px}.simple-row{display:flex;gap:10px;align-items:center;background:var(--surface);border-radius:12px;padding:12px}
+.simple-row .grow{flex:1;min-width:0}.support-only-note{padding:12px 14px;background:var(--accent-soft);border-radius:12px;color:var(--accent);font-size:13px;margin-bottom:12px}
+@media(max-width:900px){.plugin-shell{grid-template-columns:1fr}.plugin-side{min-height:360px}.plugin-frame{min-height:65vh}}
 </style>
 </head>
 <body>
@@ -341,6 +353,8 @@ a{color:var(--accent);}
     <div class="nav-item" data-view="expenses"><span class="icon">€</span>Konto</div>
     <div class="nav-item" data-view="wiki"><span class="icon">📌</span>Wiki</div>
     <div class="nav-item" data-view="incidents"><span class="icon">⚠</span>Schäden</div>
+    <div class="nav-item" id="nav-plugins" data-view="plugins"><span class="icon">🧩</span>Plugins</div>
+    <div class="nav-item" id="nav-support" data-view="support"><span class="icon">🛟</span>Support<span class="nav-badge hidden" data-badge="support">0</span></div>
     <div class="nav-item hidden" id="nav-admin" data-view="admin"><span class="icon">⚙</span>Admin<span class="nav-badge hidden" data-badge="admin">0</span></div>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -485,6 +499,31 @@ a{color:var(--accent);}
         <button class="btn btn-primary btn-sm" id="btn-new-wiki">+ Notiz</button>
       </div>
       <div class="view-body" id="wiki-list"></div>
+    </div>
+
+    
+    <div class="view" id="view-plugins">
+      <div class="view-header"><div><h2>Plugin Store</h2><div class="sub">Installiere Funktionen nur für deinen Account</div></div></div>
+      <div class="view-body">
+        <div id="plugin-store" class="plugin-grid"></div>
+        <div id="plugin-workspace" class="hidden" style="height:100%"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-support">
+      <div class="view-header"><div><h2>Support</h2><div class="sub">Direkter Kontakt mit dem HWS Support-Team</div></div></div>
+      <div class="view-body" style="display:flex;flex-direction:column;min-height:0">
+        <div id="support-info" class="support-only-note hidden">Dein Account ist im Support-Modus. Weitere HWS-Bereiche werden erst sichtbar, wenn du die Gastrolle erhältst.</div>
+        <div id="support-mod-list" class="hidden" style="margin-bottom:12px"></div>
+        <div class="card" style="display:flex;flex-direction:column;flex:1;min-height:420px">
+          <div id="support-title" style="font-weight:600;margin-bottom:10px">Support-Chat</div>
+          <div id="support-messages" class="messages" style="padding:8px;flex:1"></div>
+          <div class="chat-input" style="padding:10px 0 0;background:transparent">
+            <input type="text" id="support-input" placeholder="Nachricht an den Support…" maxlength="2000">
+            <button class="send-btn" id="support-send" type="button">➤</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="view" id="view-admin">
@@ -715,8 +754,10 @@ function dmChatId(a, b){ return [a, b].sort().join('_'); }
 function nameOf(uid){ return allUsers[uid]?.name || '?'; }
 function isImg(s){ return typeof s === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s); }
 function isAdmin(){ return myProfile?.role === 'admin'; }
+function isModerator(){ return ['moderator','admin'].includes(myProfile?.role); }
+function isSupportOnly(){ return myProfile?.role === 'support'; }
 function isOfficial(){ return ['offiziell','buchhaltung','admin'].includes(myProfile?.role); }
-function isGuest(){ return myProfile?.role === 'mitglied'; }
+function isGuest(){ return ['gast','mitglied'].includes(myProfile?.role); }
 function groupKey(id){ return 'custom:'+id; }
 function groupIdFromKey(k){ return k.startsWith('custom:') ? k.slice(7) : null; }
 function isAccounting(){ return myProfile?.role === 'admin' || myProfile?.role === 'buchhaltung'; }
@@ -836,7 +877,7 @@ async function ensureProfile(user, nameHint){
   if(snap.exists) return;
   await ref.set({
     name: nameHint || user.displayName || (user.email || '').split('@')[0] || 'Neu',
-    email: user.email || '', role: 'mitglied', approved: false, createdAt: FV.serverTimestamp()
+    email: user.email || '', role: 'support', approved: true, installedPlugins: [], createdAt: FV.serverTimestamp()
   });
 }
 $('form-register').addEventListener('submit', async e=>{
@@ -918,11 +959,14 @@ function teardownApp(){
    ============================================================ */
 function bootApp(){
   booted = true; BOOT_TS = Date.now();
-  showScreen('app'); refreshRoleUI(); switchView('home');
-  loadAllUsers(); listenGroupChat(); listenGroups(); listenDmList(); listenCalendar(); listenTasks(); listenExpenses(); listenWiki(); listenIncidents(); listenInbox(); listenActivity();
+  showScreen('app'); refreshRoleUI(); switchView(isSupportOnly() ? 'support' : 'home');
+  loadAllUsers(); listenSupport(); listenPlugins();
+  if(!isSupportOnly()){ listenGroupChat(); listenGroups(); listenDmList(); listenCalendar(); listenTasks(); listenExpenses(); listenWiki(); listenIncidents(); listenInbox(); listenActivity(); }
   setupPush();
-  if(isMobile()){ activeChat = 'group'; $('chat-layout').classList.remove('show-chat'); renderChatList(); }
-  else openChat('group');
+  if(!isSupportOnly()){
+    if(isMobile()){ activeChat = isOfficial() ? 'group' : 'welcome'; $('chat-layout').classList.remove('show-chat'); renderChatList(); }
+    else openChat(isOfficial() ? 'group' : 'welcome');
+  }
 }
 function refreshRoleUI(){
   $('my-name').textContent = myProfile.name;
@@ -931,13 +975,18 @@ function refreshRoleUI(){
   av.textContent = isImg(myProfile.photo) ? '' : initials(myProfile.name);
   av.style.backgroundImage = isImg(myProfile.photo) ? `url(${myProfile.photo})` : '';
   ['nav-admin','nav-admin-mobile'].forEach(id=> $(id).classList.toggle('hidden', !isAdmin()));
-  $('btn-new-expense').classList.toggle('hidden', !isAccounting());
+  const supportOnly=isSupportOnly();
+  document.querySelectorAll('.sidebar .nav-item').forEach(n=>{ if(n.id!=='nav-support' && n.id!=='nav-admin') n.classList.toggle('hidden', supportOnly); });
+  $('nav-support').classList.remove('hidden');
+  $('nav-plugins').classList.toggle('hidden', supportOnly);
+  $('support-info').classList.toggle('hidden', !supportOnly);
+  $('btn-new-expense').classList.toggle('hidden', supportOnly || !isAccounting());
   $('btn-new-group').classList.toggle('hidden', !isAdmin());
   if(!isAdmin() && $('view-admin').classList.contains('active')) switchView('chat');
   if(booted){ renderExpenses(); renderWiki(); if(isAdmin()) renderAdminTable(); }
 }
 
-const VIEW_TITLES = {home:'Heute',chat:'Chat',inbox:'Inbox',incidents:'Schäden',calendar:'Kalender',tasks:'Aufgaben',expenses:'Konto',wiki:'Wiki',admin:'Admin'};
+const VIEW_TITLES = {home:'Heute',chat:'Chat',inbox:'Inbox',incidents:'Schäden',calendar:'Kalender',tasks:'Aufgaben',expenses:'Konto',wiki:'Wiki',plugins:'Plugins',support:'Support',admin:'Admin'};
 function switchView(view){
   document.querySelectorAll('.nav-item').forEach(i=> i.classList.toggle('active', i.dataset.view === view));
   document.querySelectorAll('.view').forEach(v=> v.classList.toggle('active', v.id === 'view-'+view));
@@ -2074,6 +2123,97 @@ $('incident-save').addEventListener('click',async()=>{const title=$('incident-ti
 $('incident-list').addEventListener('click',async e=>{const b=e.target.closest('[data-close-incident]');if(b&&isAdmin()){await db.collection('incidents').doc(b.dataset.closeIncident).update({status:'done',closedAt:FV.serverTimestamp()});}});
  
 /* ============================================================
+   SUPPORT & PLUGINS
+   ============================================================ */
+const CORE_PLUGINS=[
+  {id:'restaurant',icon:'🍔',name:'HWS Restaurant',desc:'Restaurant-HWS groß eingebettet – mit HWS Chat daneben.'},
+  {id:'shopping',icon:'🛒',name:'Einkaufsliste',desc:'Gemeinsame Einkaufsliste in Echtzeit.'},
+  {id:'inventory',icon:'📦',name:'HWS Inventar',desc:'Gegenstände, Besitzer, Zustand und Ausleihe verwalten.'},
+  {id:'connect',icon:'🔗',name:'HWS Connect',desc:'Zentrale für Verbindungen mit anderen HWS Projekten.'},
+  {id:'ai',icon:'🤖',name:'HWS AI',desc:'KI-Assistent für Chats, Zusammenfassungen und Fragen.'},
+  {id:'studio',icon:'🧩',name:'HWS Plugin Studio',desc:'Eigene HWS Plugins konfigurieren.',adminOnly:true}
+];
+let allPluginDefs=[],shoppingItems=[],inventoryItems=[],supportMsgs=[],supportTarget=null;
+
+function installedPlugins(){return myProfile?.installedPlugins||[]}
+function listenPlugins(){
+  unsubscribers.pluginDefs=db.collection('pluginDefinitions').onSnapshot(q=>{allPluginDefs=q.docs.map(d=>({id:d.id,...d.data()}));renderPluginStore();},()=>{renderPluginStore();});
+}
+function renderPluginStore(){
+  const el=$('plugin-store'); if(!el||isSupportOnly()) return;
+  const defs=[...CORE_PLUGINS,...allPluginDefs.filter(x=>!CORE_PLUGINS.some(c=>c.id===x.id))];
+  el.innerHTML=defs.filter(p=>!p.adminOnly||isAdmin()).map(p=>{
+    const on=installedPlugins().includes(p.id);
+    return `<div class="plugin-card"><div class="plugin-icon">${escapeHtml(p.icon||'🧩')}</div><h3>${escapeHtml(p.name)}</h3><div class="meta">${escapeHtml(p.desc||'')}</div><div style="display:flex;gap:7px"><button class="btn ${on?'btn-primary':'btn-ghost'} btn-sm" data-plugin-open="${p.id}" ${on?'':'disabled'}>Öffnen</button><button class="btn btn-ghost btn-sm" data-plugin-toggle="${p.id}">${on?'Deinstallieren':'Installieren'}</button></div></div>`;
+  }).join('');
+}
+$('plugin-store').addEventListener('click',async e=>{
+  const t=e.target.closest('[data-plugin-toggle]'),o=e.target.closest('[data-plugin-open]');
+  if(t){
+    const id=t.dataset.pluginToggle,on=installedPlugins().includes(id);
+    try{await db.collection('users').doc(currentUser.uid).update({installedPlugins:on?FV.arrayRemove(id):FV.arrayUnion(id)});toast(on?'Plugin deinstalliert.':'Plugin installiert.');}catch(err){onErr('Plugin')(err);}
+  }
+  if(o) openPlugin(o.dataset.pluginOpen);
+});
+function pluginBack(){ $('plugin-workspace').classList.add('hidden'); $('plugin-store').classList.remove('hidden'); renderPluginStore(); }
+function pluginHead(title){return `<div class="view-header" style="padding:0 0 14px"><div><h2>${escapeHtml(title)}</h2></div><button class="btn btn-ghost btn-sm" id="plugin-back">← Plugin Store</button></div>`}
+function openPlugin(id){
+  const w=$('plugin-workspace');$('plugin-store').classList.add('hidden');w.classList.remove('hidden');
+  if(id==='restaurant') renderRestaurantPlugin(w);
+  else if(id==='shopping') renderShoppingPlugin(w);
+  else if(id==='inventory') renderInventoryPlugin(w);
+  else if(id==='connect') renderConnectPlugin(w);
+  else if(id==='ai') renderAiPlugin(w);
+  else if(id==='studio') renderStudioPlugin(w);
+  else renderCustomPlugin(w,id);
+  setTimeout(()=>{const b=$('plugin-back');if(b)b.onclick=pluginBack;},0);
+}
+function renderRestaurantPlugin(w){
+  const def=allPluginDefs.find(x=>x.id==='restaurant'), url=def?.url||'https://logischerlenny12.github.io/Restaurant-HWS/';
+  w.innerHTML=pluginHead('HWS Restaurant')+`<div class="plugin-shell"><iframe class="plugin-frame" src="${escapeHtml(url)}" title="HWS Restaurant" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe><div class="plugin-side"><div style="padding:14px;font-weight:600">💬 Restaurant Chat</div><div class="messages" id="restaurant-chat-msgs"></div><div class="chat-input"><input id="restaurant-chat-input" type="text" placeholder="Nachricht…"><button class="send-btn" id="restaurant-chat-send">➤</button></div></div></div>`;
+  const col=db.collection('pluginChats').doc('restaurant').collection('messages');
+  if(unsubscribers.restaurantPluginChat)unsubscribers.restaurantPluginChat();
+  unsubscribers.restaurantPluginChat=col.orderBy('timestamp','asc').limitToLast(100).onSnapshot(q=>{
+    const box=$('restaurant-chat-msgs');if(!box)return;box.innerHTML=q.docs.map(d=>{const m=d.data();return `<div class="msg ${m.senderId===currentUser.uid?'mine':''}"><div class="sender">${escapeHtml(m.senderName||'')}</div><div class="bubble"><span class="txt">${escapeHtml(m.text||'')}</span></div></div>`}).join('');box.scrollTop=box.scrollHeight;
+  },onErr('Restaurant Chat'));
+  setTimeout(()=>{$('restaurant-chat-send').onclick=async()=>{const i=$('restaurant-chat-input'),text=i.value.trim();if(!text)return;i.value='';await col.add({text,senderId:currentUser.uid,senderName:myProfile.name,timestamp:FV.serverTimestamp()});};},0);
+}
+function renderShoppingPlugin(w){
+  w.innerHTML=pluginHead('Einkaufsliste')+`<div class="card"><div style="display:flex;gap:8px"><input id="shop-add" class="tasks-search" placeholder="Was brauchen wir?"><button class="btn btn-primary" id="shop-add-btn">Hinzufügen</button></div></div><div id="shopping-list" class="simple-list"></div>`;
+  if(unsubscribers.shopping)unsubscribers.shopping();
+  unsubscribers.shopping=db.collection('shoppingList').orderBy('createdAt','desc').onSnapshot(q=>{shoppingItems=q.docs.map(d=>({id:d.id,...d.data()}));const el=$('shopping-list');if(el)el.innerHTML=shoppingItems.map(x=>`<div class="simple-row"><input type="checkbox" data-shop-done="${x.id}" ${x.done?'checked':''}><div class="grow ${x.done?'meta':''}"><b>${escapeHtml(x.text)}</b><div class="meta">von ${escapeHtml(nameOf(x.createdBy))}</div></div><button class="icon-btn" data-shop-del="${x.id}">✕</button></div>`).join('')||'<div class="empty-state">Die Liste ist leer.</div>';},onErr('Einkaufsliste'));
+  setTimeout(()=>{$('shop-add-btn').onclick=async()=>{const i=$('shop-add'),text=i.value.trim();if(!text)return;i.value='';await db.collection('shoppingList').add({text,done:false,createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});};$('shopping-list').onclick=async e=>{const c=e.target.closest('[data-shop-done]'),d=e.target.closest('[data-shop-del]');if(c)await db.collection('shoppingList').doc(c.dataset.shopDone).update({done:c.checked});if(d)await db.collection('shoppingList').doc(d.dataset.shopDel).delete();};},0);
+}
+function renderInventoryPlugin(w){
+  w.innerHTML=pluginHead('HWS Inventar')+`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="inv-name" class="tasks-search" style="flex:1" placeholder="Gegenstand"><input id="inv-place" class="tasks-search" style="flex:1" placeholder="Ort / Besitzer"><button class="btn btn-primary" id="inv-add">Hinzufügen</button></div></div><div id="inventory-list" class="simple-list"></div>`;
+  if(unsubscribers.inventory)unsubscribers.inventory();
+  unsubscribers.inventory=db.collection('inventory').orderBy('createdAt','desc').onSnapshot(q=>{inventoryItems=q.docs.map(d=>({id:d.id,...d.data()}));const el=$('inventory-list');if(el)el.innerHTML=inventoryItems.map(x=>`<div class="simple-row"><div class="plugin-icon">📦</div><div class="grow"><b>${escapeHtml(x.name)}</b><div class="meta">${escapeHtml(x.place||'Kein Ort')} · ${x.borrowed?'Ausgeliehen':'Verfügbar'}</div></div><button class="btn btn-ghost btn-sm" data-inv-borrow="${x.id}">${x.borrowed?'Zurück':'Ausleihen'}</button>${isAdmin()?'<button class="icon-btn" data-inv-del="'+x.id+'">✕</button>':''}</div>`).join('')||'<div class="empty-state">Noch kein Inventar.</div>';},onErr('Inventar'));
+  setTimeout(()=>{$('inv-add').onclick=async()=>{const n=$('inv-name').value.trim();if(!n)return;await db.collection('inventory').add({name:n,place:$('inv-place').value.trim(),borrowed:false,createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});$('inv-name').value='';};$('inventory-list').onclick=async e=>{const b=e.target.closest('[data-inv-borrow]'),d=e.target.closest('[data-inv-del]');if(b){const x=inventoryItems.find(i=>i.id===b.dataset.invBorrow);await db.collection('inventory').doc(x.id).update({borrowed:!x.borrowed,borrowedBy:!x.borrowed?currentUser.uid:null});}if(d&&isAdmin())await db.collection('inventory').doc(d.dataset.invDel).delete();};},0);
+}
+function renderConnectPlugin(w){w.innerHTML=pluginHead('HWS Connect')+`<div class="card"><h3>🔗 Verbundene HWS Dienste</h3><div class="meta" style="margin-top:8px">HWS Connect ist die gemeinsame Schnittstelle für weitere HWS Projekte. Restaurant-HWS ist als erstes externes Projekt vorgesehen.</div></div><div class="card"><h3>Restaurant-HWS</h3><div class="meta">Status: Plugin verfügbar · Verbindung über eingebettete Webseite</div></div>`;}
+function renderAiPlugin(w){w.innerHTML=pluginHead('HWS AI')+`<div class="card"><h3>🤖 HWS AI</h3><div class="meta" style="margin-top:8px">Das Plugin ist installiert. Für echte KI-Antworten fehlt noch ein sicherer Server-Endpunkt. Ein API-Schlüssel darf nicht direkt in dieser HTML-Datei gespeichert werden.</div></div><div class="card"><div class="field"><label>Frage</label><textarea id="ai-q" placeholder="z. B. Fasse den aktuellen Chat zusammen"></textarea></div><button class="btn btn-primary" id="ai-ask">HWS AI fragen</button><div id="ai-answer" class="meta" style="margin-top:12px"></div></div>`;setTimeout(()=>{$('ai-ask').onclick=()=>{$('ai-answer').textContent='HWS AI ist vorbereitet, aber noch nicht mit einem sicheren KI-Backend verbunden.';};},0);}
+function renderStudioPlugin(w){
+  if(!isAdmin()){w.innerHTML=pluginHead('Plugin Studio')+'<div class="empty-state">Nur für Admins.</div>';return;}
+  w.innerHTML=pluginHead('HWS Plugin Studio')+`<div class="card"><h3>Neues Web-Plugin</h3><div class="field"><label>Name</label><input id="ps-name"></div><div class="field"><label>Icon</label><input id="ps-icon" value="🧩"></div><div class="field"><label>Webadresse (optional)</label><input id="ps-url" type="url" placeholder="https://…"></div><button class="btn btn-primary" id="ps-save">Plugin erstellen</button></div>`;
+  setTimeout(()=>{$('ps-save').onclick=async()=>{const name=$('ps-name').value.trim();if(!name)return;const id='custom_'+Date.now();await db.collection('pluginDefinitions').doc(id).set({name,icon:$('ps-icon').value||'🧩',url:$('ps-url').value.trim(),desc:'Eigenes HWS Plugin',createdBy:currentUser.uid,createdAt:FV.serverTimestamp()});toast('Plugin erstellt.');pluginBack();};},0);
+}
+function renderCustomPlugin(w,id){const p=allPluginDefs.find(x=>x.id===id);w.innerHTML=pluginHead(p?.name||'Plugin')+(p?.url?`<iframe class="plugin-frame" src="${escapeHtml(p.url)}" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>`:'<div class="empty-state">Dieses Plugin hat noch keinen Inhalt.</div>');}
+
+function supportCol(uid){return db.collection('supportChats').doc(uid).collection('messages')}
+function listenSupport(){
+  if(isModerator()){
+    unsubscribers.supportUsers=db.collection('users').onSnapshot(q=>{const users=q.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.role==='support');const el=$('support-mod-list');if(!el)return;el.classList.remove('hidden');el.innerHTML='<div class="section-head"><h3>Support-Anfragen</h3></div>'+users.map(u=>`<button class="btn btn-ghost btn-sm" style="margin:3px" data-support-user="${u.id}">${escapeHtml(u.name)}</button>`).join('');el.onclick=e=>{const b=e.target.closest('[data-support-user]');if(b)openSupportChat(b.dataset.supportUser);};if(!supportTarget&&users[0])openSupportChat(users[0].id);},onErr('Support'));
+  }else openSupportChat(currentUser.uid);
+}
+function openSupportChat(uid){
+  supportTarget=uid;$('support-title').textContent=isModerator()?'Support · '+nameOf(uid):'Support-Chat';
+  if(unsubscribers.supportMessages)unsubscribers.supportMessages();
+  unsubscribers.supportMessages=supportCol(uid).orderBy('timestamp','asc').limitToLast(150).onSnapshot(q=>{supportMsgs=q.docs.map(d=>({id:d.id,...d.data()}));const el=$('support-messages');if(!el)return;el.innerHTML=supportMsgs.map(m=>`<div class="msg ${m.senderId===currentUser.uid?'mine':''}"><div class="sender">${escapeHtml(m.senderName||'')}</div><div class="bubble"><span class="txt">${escapeHtml(m.text||'')}</span></div></div>`).join('')||'<div class="empty-state">Schreib uns deine Frage – ein Moderator kann dir hier helfen.</div>';el.scrollTop=el.scrollHeight;},onErr('Support Chat'));
+}
+async function sendSupport(){const i=$('support-input'),text=i.value.trim();if(!text||!supportTarget)return;i.value='';await supportCol(supportTarget).add({text,senderId:currentUser.uid,senderName:myProfile.name,timestamp:FV.serverTimestamp()});}
+$('support-send').addEventListener('click',sendSupport);$('support-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendSupport();}});
+
+/* ============================================================
    ADMIN
    ============================================================ */
 function renderAdminTable(){
@@ -2085,7 +2225,10 @@ function renderAdminTable(){
       <td>${escapeHtml(u.name || '–')}</td><td>${escapeHtml(u.email || '–')}</td>
       <td><span class="status-dot ${u.approved ? 'ok' : 'wait'}"></span>${u.approved ? 'Freigegeben' : 'Wartet'}</td>
       <td><select data-role-for="${u.id}" ${u.id === currentUser.uid ? 'disabled' : ''}>
-        <option value="mitglied" ${u.role === 'mitglied' ? 'selected' : ''}>Gast / normales Mitglied</option>
+        <option value="support" ${u.role === 'support' ? 'selected' : ''}>Nur Support</option>
+        <option value="gast" ${u.role === 'gast' ? 'selected' : ''}>Gast</option>
+        <option value="mitglied" ${u.role === 'mitglied' ? 'selected' : ''}>Mitglied</option>
+        <option value="moderator" ${u.role === 'moderator' ? 'selected' : ''}>Moderator</option>
         <option value="offiziell" ${u.role === 'offiziell' ? 'selected' : ''}>Offizielles Mitglied</option>
         <option value="buchhaltung" ${u.role === 'buchhaltung' ? 'selected' : ''}>Buchhaltung</option>
         <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
